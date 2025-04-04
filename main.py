@@ -136,23 +136,57 @@ def generate_synthetic_data(config):
             if valid_start:
                 break
 
-        # Random entry/exit frames
-        max_possible_entry = max(0, total_frames - 2) # Ensure at least 2 frames of life if possible
-        entry_frame = random.randint(0, max_possible_entry)
-        # Ensure actor stays for at least a few frames, up to the end
-        min_duration_frames = framerate * 2 # Minimum 2 seconds life span
-        max_life_frame = min(total_frames -1, entry_frame + random.randint(min_duration_frames, total_frames - entry_frame))
-        exit_frame = max(entry_frame + 1, max_life_frame) # Must exit after entry
+        # Random entry frame
+        # Ensure actor can exist for at least 1 frame after entry for exit calculation
+        max_possible_entry = max(0, total_frames - 2) 
+        # Handle case where total_frames itself is very small
+        if max_possible_entry < 0: max_possible_entry = 0 # Should not happen with UI limits but safe guard
+        
+        # Ensure entry frame calculation is valid if max_possible_entry is 0
+        if max_possible_entry == 0:
+            entry_frame = 0
+        else:
+            entry_frame = random.randint(0, max_possible_entry)
+
+        # --- Corrected Duration and Exit Frame Calculation ---
+        min_duration_frames = framerate * 2 # Minimum frames lifespan (e.g., 2 seconds)
+        # Ensure minimum duration is at least 1 frame
+        min_duration_frames = max(1, min_duration_frames) 
+
+        # Calculate max possible duration from entry frame until the end of simulation
+        max_possible_duration = total_frames - entry_frame 
+        
+        # Ensure max_possible_duration is at least 1
+        max_possible_duration = max(1, max_possible_duration)
+
+        # Determine the actual duration
+        if max_possible_duration < min_duration_frames:
+            # Cannot meet min duration, stay for the max possible time
+            actual_duration_frames = max_possible_duration
+        else:
+            # Can meet min duration, pick randomly between min requirement and max possible
+            actual_duration_frames = random.randint(min_duration_frames, max_possible_duration)
+
+        # Calculate exit frame (inclusive index of the last frame the actor exists)
+        # Subtract 1 because duration includes the entry frame itself
+        exit_frame = entry_frame + actual_duration_frames - 1
+        
+        # Clamp exit frame to the last valid frame index of the simulation
+        exit_frame = min(exit_frame, total_frames - 1)
+        
+        # Ensure exit_frame is at least the entry_frame (handles duration=1 case)
+        exit_frame = max(entry_frame, exit_frame)
+        # --- End of Corrected Section ---
 
 
         actors[actor_id] = {
             'descriptor': [f'person_{actor_id}'], # Simple descriptor
             'entry': [entry_frame], # Store as list for potential multiple entries later
-            'exit': [exit_frame],   # Store as list for potential multiple exits later
+            'exit': [exit_frame],   # Store as list for potential multiple exits later (USE CORRECTED exit_frame)
             'frames': [],         # List of (w, h, x, y) tuples per frame
             'postures': [],       # Placeholder for postures (KIV)
         }
-        
+
         actor_states[actor_id] = {
             'id': actor_id,
             'w': actor_w,
@@ -163,7 +197,7 @@ def generate_synthetic_data(config):
             'target_x': random.randint(0, env_w - actor_w),
             'target_y': random.randint(0, env_h - actor_h),
             'entry_frame': entry_frame,
-            'exit_frame': exit_frame,
+            'exit_frame': exit_frame, # USE CORRECTED exit_frame
             'active': False # Will become active at entry frame
         }
 
